@@ -1,0 +1,6 @@
+<note>
+    <to>${2}</to>
+    <from>${1}</from>
+    <heading>Reminder</heading>
+    <body>${3}</body>
+</note>
