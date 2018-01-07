@@ -3,7 +3,7 @@ import unittest
 from rsimulator_core.matcher import *
 
 
-class Re_Handler(unittest.TestCase):
+class Matcher(unittest.TestCase):
 
     def test_find_matches_json(self):
         self.assertEqual([{'request': '{"foo": "Hello World!"}',

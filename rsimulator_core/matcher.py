@@ -70,9 +70,7 @@ def replace_response(match, response):
 
 
 def get_response_path(request_path):
-    d = dirname(request_path)
-    f = request_path.split(sep)[-1].replace('Request', 'Response')
-    return f'{d}/{f}'
+    return f'{dirname(request_path)}/{request_path.split(sep)[-1].replace("Request", "Response")}'
 
 
 def find(root_path, root_relative_path, ending):
