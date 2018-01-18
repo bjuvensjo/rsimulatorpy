@@ -61,6 +61,10 @@ class Matcher(unittest.TestCase):
         self.assertTrue(
             get_match('\{"(foo)":"bar","a":1,"(.*)":\{"a":\[1,2,3\]\}}', '{"foo":"bar","a":1,"baz":{"a":[1,2,3]}}'))
 
+    def test_escape(self):
+        self.assertEqual('{"a":1,"baz":\{"a":\[1,2,3\]\},"foo":"bar"}', escape({"foo":"bar","a":1,"baz":{"a":[1,2,3]}}, False))
+        self.assertEqual('\{"a":1,"baz":\{"a":\[1,2,3\]\},"foo":"bar"\}', escape({"foo":"bar","a":1,"baz":{"a":[1,2,3]}}, True))
+
 
 if __name__ == '__main__':
     unittest.main()
