@@ -5,7 +5,7 @@ import sys
 from flask import Flask, abort
 from flask import request
 
-import rsimulator_core.rsimulator_core as core
+import rsimulator_core.core as core
 import rsimulator_http.config as cfg
 
 app = Flask(__name__)
