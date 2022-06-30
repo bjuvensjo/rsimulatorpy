@@ -10,3 +10,5 @@
 **/Slask*
 **/slask*
 **/__pycache__
+.coverage
+pytest-cov.sh

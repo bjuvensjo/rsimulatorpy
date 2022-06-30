@@ -26,33 +26,37 @@ def get_log():
 log = get_log()
 
 
-def get_content_type(content_type=''):
-    if 'json' in content_type:
-        return 'json'
-    if 'xml' in content_type:
-        return 'xml'
-    return 'txt'
+def get_content_type(content_type=""):
+    if "json" in content_type:
+        return "json"
+    if "xml" in content_type:
+        return "xml"
+    return "txt"
 
 
-def get_content_encoding(content_type=''):
-    split = content_type.split(';')
+def get_content_encoding(content_type=""):
+    split = content_type.split(";")
     if len(split) == 2:
-        return split[1].split('=')[1]
-    return 'utf-8'
+        return split[1].split("=")[1]
+    return "utf-8"
 
 
-@app.route('/', defaults={'root_relative_path': ''}, methods=['GET', 'POST', 'PUT', 'DELETE'])
-@app.route('/<path:root_relative_path>', methods=['GET', 'POST', 'PUT', 'DELETE'])
+@app.route(
+    "/", defaults={"root_relative_path": ""}, methods=["GET", "POST", "PUT", "DELETE"]
+)
+@app.route("/<path:root_relative_path>", methods=["GET", "POST", "PUT", "DELETE"])
 def service(root_relative_path):
-    core_response = core.service(cfg.ROOT_PATH,
-                                 root_relative_path,
-                                 request.data.decode(get_content_encoding(request.content_type)),
-                                 get_content_type(request.content_type))
+    core_response = core.service(
+        cfg.ROOT_PATH,
+        root_relative_path,
+        request.data.decode(get_content_encoding(request.content_type)),
+        get_content_type(request.content_type),
+    )
     if core_response:
-        return core_response['response']
+        return core_response["response"]
     else:
         abort(404)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run()

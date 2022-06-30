@@ -1,0 +1,33 @@
+[project]
+name = "rsimulatorpy"
+version = "0.9.0"
+authors = [
+  { name="Magnus Bjuvensjö", email="bjuvensjo@gmail.com" },
+]
+description = "Used to mock requests/messages, e.g. json, xml, txt."
+readme = "README.md"
+license = { file="LICENSE" }
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+keywords=["python", "mock", "request", "message"]
+dependencies = [
+    "Flask",
+    "lxml",
+]
+[project.optional-dependencies]
+dev = [
+    "black",
+    "pytest",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/bjuvensjo/rsimulatorpy"
+"Bug Tracker" = "https://github.com/bjuvensjo/rsimulatorpy/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
