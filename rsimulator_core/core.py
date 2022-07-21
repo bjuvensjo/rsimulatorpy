@@ -1,8 +1,8 @@
 import logging
 
-from rsimulator_core.data import CoreMatch, CoreNoMatch
+from rsimulator_core.data import Match
 from rsimulator_core.decorators import cache, script
-from rsimulator_core.matcher import find_matches
+from rsimulator_core.regex.matcher import find_matches
 
 log = logging.getLogger(__name__)
 
@@ -11,7 +11,7 @@ log = logging.getLogger(__name__)
 @script
 def service(
     root_path: str, root_relative_path: str, request: str, content_type: str, **kwargs
-) -> CoreMatch | None:
+) -> Match | None:
     """
     Returns first match to request recursively found in <root_path>/<root_relative_path>.
     Returns None if no match is found.
@@ -26,7 +26,7 @@ def service(
     """
     log.debug("Service called with: %s", locals())
     matches, no_matches = find_matches(
-        root_path, root_relative_path, request, content_type, **kwargs
+        root_path, root_relative_path, request, content_type
     )
     log.debug("No Matches: %s", no_matches)
     log.debug("Matches: %s", matches)

@@ -1,8 +1,9 @@
 from importlib import reload
+from posixpath import dirname
 
-from rsimulator_core.matcher import *
+from rsimulator_core.data import Match
 
-root_dir = f"{dirname(__file__)}/data"
+root_dir = f"{dirname(__file__)}/../regex/test/data"
 
 
 def test_service_no_cache():
@@ -15,7 +16,7 @@ def test_service_no_cache():
     reload(rsimulator_core.core)
     from rsimulator_core.core import service
 
-    assert service(root_dir, "json", '{"foo": "Hello World!"}', "json") == CoreMatch(
+    assert service(root_dir, "json", '{"foo": "Hello World!"}', "json") == Match(
         request='{"foo": "Hello World!"}',
         candidate_path=f"{root_dir}/json/1_Request.json",
         candidate='{\n  "foo": "(.*)"\n}',
@@ -39,8 +40,8 @@ def test_service_cache():
     from rsimulator_core.core import service
 
     assert service(
-        f"{dirname(__file__)}/data", "json", '{"foo": "Hello World!"}', "json"
-    ) == CoreMatch(
+        root_dir, "json", '{"foo": "Hello World!"}', "json"
+    ) == Match(
         request='{"foo": "Hello World!"}',
         candidate_path=f"{root_dir}/json/1_Request.json",
         candidate='{\n  "foo": "(.*)"\n}',

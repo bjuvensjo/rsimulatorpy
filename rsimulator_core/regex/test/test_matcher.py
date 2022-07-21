@@ -1,5 +1,7 @@
-from rsimulator_core.data import Error
-from rsimulator_core.matcher import *
+from posixpath import dirname
+
+from rsimulator_core.data import Error, Match, NoMatch
+from rsimulator_core.regex.matcher import find_matches
 
 root_dir = f"{dirname(__file__)}/data"
 
@@ -7,7 +9,7 @@ root_dir = f"{dirname(__file__)}/data"
 def test_find_matches_json():
     assert find_matches(root_dir, "json", '{"foo": "Hello World!"}', "json") == (
         (
-            CoreMatch(
+            Match(
                 request='{"foo": "Hello World!"}',
                 candidate_path=f"{root_dir}/json/1_Request.json",
                 candidate='{\n  "foo": "(.*)"\n}',
@@ -17,27 +19,24 @@ def test_find_matches_json():
             ),
         ),
         (
-            CoreNoMatch(
+            NoMatch(
                 request='{"foo": "Hello World!"}',
                 candidate_path=f"{root_dir}/json/2_Request.json",
                 candidate="",
-                result=Result(
-                    error=Error(
-                        parents=None,
-                        this=None,
-                        that=None,
-                        message='Cannot load this "": '
-                        "Expecting value: line 1 "
-                        "column 1 (char 0)",
-                    ),
-                    groups=(),
+                error=Error(
+                    path=(),
+                    this="",
+                    that='{"foo": "Hello World!"}',
+                    message='Cannot load this "": '
+                    "Expecting value: line 1 "
+                    "column 1 (char 0)",
                 ),
             ),
         ),
     )
     assert find_matches(root_dir, "json", "", "json") == (
         (
-            CoreMatch(
+            Match(
                 request="",
                 candidate_path=f"{root_dir}/json/2_Request.json",
                 candidate="",
@@ -47,20 +46,17 @@ def test_find_matches_json():
             ),
         ),
         (
-            CoreNoMatch(
+            NoMatch(
                 request="",
                 candidate_path=f"{root_dir}/json/1_Request.json",
                 candidate='{\n  "foo": "(.*)"\n}',
-                result=Result(
-                    error=Error(
-                        parents=None,
-                        this=None,
-                        that=None,
-                        message='Cannot load that "": '
-                        "Expecting value: line 1 "
-                        "column 1 (char 0)",
-                    ),
-                    groups=(),
+                error=Error(
+                    path=(),
+                    this='{\n  "foo": "(.*)"\n}',
+                    that="",
+                    message='Cannot load that "": '
+                    "Expecting value: line 1 "
+                    "column 1 (char 0)",
                 ),
             ),
         ),
@@ -70,7 +66,7 @@ def test_find_matches_json():
 def test_find_matches_txt():
     assert find_matches(root_dir, "txt", "This\nis\nthe\nrequest", "txt") == (
         (
-            CoreMatch(
+            Match(
                 request="This\nis\nthe\nrequest",
                 candidate_path=f"{root_dir}/txt/1_Request.txt",
                 candidate="(This.*)",
@@ -80,30 +76,24 @@ def test_find_matches_txt():
             ),
         ),
         (
-            CoreNoMatch(
+            NoMatch(
                 request="This\nis\nthe\nrequest",
                 candidate_path=f"{root_dir}/txt/2_Request.txt",
                 candidate="([a-zA-Z]{6}) ([^ ]+) says hello!",
-                result=Result(
-                    error=Error(
-                        parents=None,
-                        this=None,
-                        that=None,
-                        message="Values not matching: "
-                        "([a-zA-Z]{6}) ([^ ]+) says "
-                        "hello! != This\n"
-                        "is\n"
-                        "the\n"
-                        "request",
-                    ),
-                    groups=(),
+                error=Error(
+                    path=(),
+                    this="([a-zA-Z]{6}) ([^ ]+) says hello!",
+                    that="This\nis\nthe\nrequest",
+                    message="Values not matching: "
+                    "([a-zA-Z]{6}) ([^ ]+) says hello! != "
+                    "This\nis\nthe\nrequest",
                 ),
             ),
         ),
     )
     assert find_matches(root_dir, "txt", "Harald Ljungstroem says hello!", "txt") == (
         (
-            CoreMatch(
+            Match(
                 request="Harald Ljungstroem says hello!",
                 candidate_path=f"{root_dir}/txt/2_Request.txt",
                 candidate="([a-zA-Z]{6}) ([^ ]+) says hello!",
@@ -113,20 +103,16 @@ def test_find_matches_txt():
             ),
         ),
         (
-            CoreNoMatch(
+            NoMatch(
                 request="Harald Ljungstroem says hello!",
                 candidate_path=f"{root_dir}/txt/1_Request.txt",
                 candidate="(This.*)",
-                result=Result(
-                    error=Error(
-                        parents=None,
-                        this=None,
-                        that=None,
-                        message="Values not matching: (This.*) "
-                        "!= Harald Ljungstroem says "
-                        "hello!",
-                    ),
-                    groups=(),
+                error=Error(
+                    path=(),
+                    this="(This.*)",
+                    that="Harald Ljungstroem says hello!",
+                    message="Values not matching: (This.*) != "
+                    "Harald Ljungstroem says hello!",
                 ),
             ),
         ),
@@ -141,7 +127,7 @@ def test_find_matches_xml():
         "xml",
     ) == (
         (
-            CoreMatch(
+            Match(
                 request="<note><to>Tove</to><from>Jani</from><heading>Reminder</heading><body>Dont "
                 "forget me this weekend!</body></note>",
                 candidate_path=f"{root_dir}/xml/1_Request.xml",

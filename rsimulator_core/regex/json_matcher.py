@@ -1,90 +1,95 @@
 import logging
 import re
-from json import loads, dumps
+from json import dumps, loads
 from json.decoder import JSONDecodeError
-from typing import Optional, Any
+from typing import Any
 
-from rsimulator_core.data import Result, Error
+from rsimulator_core.data import Error
+from rsimulator_core.regex.data import Groups
 
 log = logging.getLogger(__name__)
 
 
 def __error(
-    parents: Optional[tuple[str, ...]],
-    this_str: Optional[str],
-    that_str: Optional[str],
+    parents: tuple[str, ...] | None,
+    this_str: str | None,
+    that_str: str | None,
     message: str,
-) -> Result:
-    return Result(error=Error(parents, this_str, that_str, message))
+) -> Error:
+    return Error(parents, this_str, that_str, message)
 
 
-def __match_default(this_value, that_value, parents: tuple[str, ...]) -> Result:
-    return (
-        Result()
-        if this_value == that_value
-        else __error(
-            parents,
-            None,
-            None,
-            f'Values not matching: "{this_value}" != "{that_value}"',
-        )
+def __match_default(this_value, that_value, parents: tuple[str, ...]) -> Error | Groups:
+    if this_value == that_value:
+        return Groups()
+    return __error(
+        parents,
+        str(this_value),
+        str(that_value),
+        f'Values not matching: "{this_value}" != "{that_value}"',
     )
 
 
-def __match_dict(this_dict: dict, that_dict: dict, parents: tuple[str, ...]) -> Result:
+def __match_dict(
+    this_dict: dict, that_dict: dict, parents: tuple[str, ...]
+) -> Error | Groups:
     if len(this_dict) != len(that_dict):
         return __error(parents, None, None, "Different number of keys")
     groups = tuple()
-    this_sorted = dict(sorted(this_dict.items()))
-    that_sorted = dict(sorted(that_dict.items()))
-    for this_child, that_child in zip(this_sorted.items(), that_sorted.items()):
-        this_child_key, this_child_value = this_child
-        that_child_key, that_child_value = that_child
-        if this_child_key != that_child_key:
+    for this_child_key, this_child_value in this_dict.items():
+        that_child_value = that_dict.get(this_child_key, None)
+        if that_child_value is None:
             return __error(
                 parents,
                 this_child_key,
-                that_child_key,
-                f'Keys not matching: "{this_child_key}" != "{that_child_key}"',
+                None,
+                f'Keys not matching: "{this_child_key}"',
             )
-        child_result = __match_objects(
+        child_match = __match_objects(
             this_child_value, that_child_value, parents + (this_child_key,)
         )
-        if child_result.has_error():
-            if child_result.error.this is None:
+        if isinstance(child_match, Error):
+            if child_match.this is None:
                 return __error(
-                    parents, this_child_key, that_child_key, child_result.error.message
+                    parents, this_child_key, this_child_key, child_match.message
                 )
             else:
-                return child_result
+                return child_match
         else:
-            groups += child_result.groups
-    return Result(groups=groups)
+            groups += child_match.groups
+    return Groups(groups=groups)
 
 
-def __match_list(this_list: list, that_list: list, parents: tuple[str, ...]) -> Result:
+def __match_list(
+    this_list: list, that_list: list, parents: tuple[str, ...]
+) -> Error | Groups:
     if len(this_list) != len(that_list):
-        return __error(parents, None, None, "Different length of lists")
+        return __error(
+            parents, str(this_list), str(that_list), "Different length of lists"
+        )
     groups = tuple()
-    this_sorted = sorted(this_list, key=str)
-    that_sorted = sorted(that_list, key=str)
-    for this_child, that_child in zip(this_sorted, that_sorted):
-        child_result = __match_objects(this_child, that_child, parents)
-        if child_result.has_error():
-            return child_result
+    for index, children in enumerate(zip(this_list, that_list)):
+        this_child, that_child = children
+        child_match = __match_objects(this_child, that_child, parents + (index,))
+        if isinstance(child_match, Error):
+            return child_match
         else:
-            groups += child_result.groups
-    return Result(groups=groups)
+            groups += child_match.groups
+    return Groups(groups=groups)
 
 
-def __match_str(this_str: str, that_str: str, parents: tuple[str, ...]) -> Result:
+def __match_str(
+    this_str: str, that_str: str, parents: tuple[str, ...]
+) -> Error | Groups:
     if this_str == that_str:
-        return Result()
-    m = re.fullmatch(f"(?ms){this_str}", that_str)
-    if m:
-        return Result(groups=tuple(m.groups()))
+        return Groups()
+    if m := re.fullmatch(f"(?ms){this_str}", that_str):
+        return Groups(groups=tuple(m.groups()))
     return __error(
-        parents, None, None, f'Values not matching: "{this_str}" != "{that_str}"'
+        parents,
+        this_str,
+        that_str,
+        f'Values not matching: "{this_str}" != "{that_str}"',
     )
 
 
@@ -100,7 +105,7 @@ def __match_objects(
     this_object: Any,
     that_object: Any,
     parents: tuple[str, ...],
-) -> Result:
+) -> Error | Groups:
     # Return error if different types
     if type(this_object) != type(that_object):
         return __error(
@@ -115,21 +120,24 @@ def __match_objects(
         result = __match_str(
             __canonicalize(this_object), __canonicalize(that_object), parents
         )
-        if not result.has_error():
+        if isinstance(result, Groups):
             return result
 
-    return {dict: __match_dict, list: __match_list, str: __match_str}.get(
-        type(this_object), __match_default
-    )(this_object, that_object, parents)
+    match_function = {
+        dict: __match_dict,
+        list: __match_list,
+        str: __match_str,
+    }.get(type(this_object), __match_default)
+    return match_function(this_object, that_object, parents)
 
 
-def match(this: str, that: str) -> Result:
+def match(this: str, that: str) -> Error | Groups:
     """
     Matches this and that.
     The "this" can contain regular expressions.
     Both "this" and "that" must be valid json, if they not as a whole matches with
     re.fullmatch(f"(?ms){r}", s).
-    Returns a Result object with possible groups and/or errors
+    Returns an Error or a Groups object.
     """
     if not (isinstance(this, str) and isinstance(that, str)):
         # Return error if this and that are not strings
@@ -140,9 +148,9 @@ def match(this: str, that: str) -> Result:
             f'Values not strings: "{type(this)}" != "{type(that)}"',
         )
 
-    # Match this and that as strings and return if result is a match, i.e. has no error
+    # Match this and that as strings and return if Match, i.e. no Error
     result = __match_str(this, that, ())
-    if not result.has_error():
+    if isinstance(result, Groups):
         return result
 
     # Load to Objects
@@ -151,7 +159,7 @@ def match(this: str, that: str) -> Result:
         try:
             objects.append(loads(json))
         except JSONDecodeError as e:
-            return __error(None, None, None, f'Cannot load {name} "{json}": {e}')
+            return __error((), this, that, f'Cannot load {name} "{json}": {e}')
     this_object, that_object = objects
 
     # Match Objects

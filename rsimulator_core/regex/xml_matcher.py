@@ -1,54 +1,60 @@
-import re
-from re import Match
-from typing import Optional
+from re import Match as ReMatch
+from re import fullmatch, sub
 
 from lxml import etree as et
-from lxml.etree import XMLSyntaxError, Element
-
-from rsimulator_core.data import Result, Error
+from lxml.etree import Element, XMLSyntaxError
+from rsimulator_core.data import Error
+from rsimulator_core.regex.data import Groups
 
 
 def __error(
-    parents: Optional[tuple[str, ...]],
-    this_element: Optional[Element],
-    that_element: Optional[Element],
+    parents: tuple[Element, ...],
+    this_element: Element,
+    that_element: Element,
     message: str,
-) -> Result:
-    return Result(
-        error=Error(
-            parents,
-            None if this_element is None else this_element.tag,
-            None if that_element is None else that_element.tag,
-            message,
-        )
+) -> Error:
+    path = tuple(e.tag for e in parents)
+    this = (
+        this_element
+        if isinstance(this_element, str)
+        else et.tostring(this_element).decode("utf-8")
     )
+    that = (
+        that_element
+        if isinstance(that_element, str)
+        else et.tostring(that_element).decode("utf-8")
+    )
+    return Error(path, this, that, message)
 
 
 def __remove_prolog(xml_str: str) -> str:
-    return re.sub(
+    return sub(
         "^<\\?.+\\?>", "", xml_str.strip()
     ).strip()  # '<?xml version="1.0" encoding="UTF-8"?>'
 
 
-def __match(this_str: str, that_str: str) -> Match[str]:
-    return re.fullmatch(f"(?ms){this_str}", that_str)
+def __match(this_str: str, that_str: str) -> ReMatch[str]:
+    return fullmatch(f"(?ms){this_str}", that_str)
 
 
 def __match_tag(
-    this_element: Element, that_element: Element, parents: tuple[str, ...]
-) -> Result:
-    return (
-        Result()
-        if this_element.tag == that_element.tag
-        else __error(parents, this_element, that_element, "Names not matching")
+    this_element: Element, that_element: Element, parents: tuple[Element, ...]
+) -> Error | Groups:
+    if this_element.tag == that_element.tag:
+        return Groups()
+    return __error(
+        parents,
+        this_element,
+        that_element,
+        f'Names not matching: "{this_element.tag}" != "{that_element.tag}"',
     )
 
 
 def __match_attr(
-    this_element: Element, that_element: Element, parents: tuple[str, ...]
-) -> Result:
+    this_element: Element, that_element: Element, parents: tuple[Element, ...]
+) -> Error | Groups:
     if this_element.attrib == that_element.attrib:
-        return Result()
+        return Groups()
     if len(this_element.attrib) != len(that_element.attrib):
         return __error(
             parents, this_element, that_element, "Different number of attributes"
@@ -66,18 +72,17 @@ def __match_attr(
                 f'Attribute values not matching for {this_key}: "{this_value}" != "{that_value}"',
             )
         groups += m.groups()
-    return Result(groups=groups)
+    return Groups(groups=groups)
 
 
 def __match_text(
-    this_element: Element, that_element: Element, parents: tuple[str, ...]
-) -> Result:
+    this_element: Element, that_element: Element, parents: tuple[Element, ...]
+) -> Error | Groups:
     this_text, that_text = (
         e.text.strip() if e.text else "" for e in (this_element, that_element)
     )
-    m = __match(this_text, that_text)
-    if m:
-        return Result(groups=tuple(m.groups()))
+    if m := __match(this_text, that_text):
+        return Groups(groups=tuple(m.groups()))
     return __error(
         parents,
         this_element,
@@ -87,8 +92,8 @@ def __match_text(
 
 
 def __match_children(
-    this_element: Element, that_element: Element, parents: tuple[str, ...]
-) -> Result:
+    this_element: Element, that_element: Element, parents: tuple[Element, ...]
+) -> Error | Groups:
     if len(this_element) != len(that_element):
         return __error(
             parents, this_element, that_element, "Different number of children"
@@ -97,11 +102,11 @@ def __match_children(
     for this_child, that_child in zip(
         this_element, that_element
     ):  # children must be in same order
-        result = __match_elements(this_child, that_child, parents + (this_element.tag,))
-        if result.has_error():
+        result = __match_elements(this_child, that_child, parents + (this_element,))
+        if isinstance(result, Error):
             return result
         groups += tuple(result.groups)
-    return Result(groups=groups)
+    return Groups(groups=groups)
 
 
 def __canonicalize(this_element: Element, that_element: Element) -> tuple[str, str]:
@@ -115,49 +120,47 @@ def __canonicalize(this_element: Element, that_element: Element) -> tuple[str, s
 def __match_elements(
     this_element: Element,
     that_element: Element,
-    parents=(),
-) -> Result:
-    # Return if as canonicalized strings and are equal or match as regexp
+    parents: tuple[Element, ...] = (),
+) -> Error | Groups:
+    # Return if as canonicalized strings are equal or match as regexp
     this_canonicalized, that_canonicalized = __canonicalize(this_element, that_element)
     if this_canonicalized == that_canonicalized:
-        return Result()
-    m = __match(this_canonicalized, that_canonicalized)
-    if m:
-        return Result(groups=tuple(m.groups()))
+        return Groups()
+    if m := __match(this_canonicalized, that_canonicalized):
+        return Groups(groups=tuple(m.groups()))
     # Match this_element and that_element. Return first Error if encountered, else captured groups
     groups = tuple()
     for f in __match_tag, __match_attr, __match_text, __match_children:
         result = f(this_element, that_element, parents)
-        if result.has_error():
+        if isinstance(result, Error):
             return result
         groups += result.groups
 
-    return Result(groups=groups)
+    return Groups(groups=groups)
 
 
-def match(this: str, that: str) -> Result:
+def match(this: str, that: str) -> Error | Groups:
     """
     Matches this and that.
     The "this" can contain regular expressions.
     Both "this" and "that" must be valid xml, if they not as a whole matches with
     re.fullmatch(f"(?ms){r}", s).
-    Returns a Result object with possible groups and/or errors
+    Returns an Error or a Groups object.
     """
     if not (isinstance(this, str) and isinstance(that, str)):
         # Return error if this and that are not strings
         return __error(
             (),
-            None,
-            None,
+            str(this),
+            str(that),
             f'Values not strings: "{type(this)}" != "{type(that)}"',
         )
 
     # Return if this and that are equal or match as regexp
     if this == that:
-        return Result()
-    m = __match(this, that)
-    if m:
-        return Result(groups=tuple(m.groups()))
+        return Groups()
+    if m := __match(this, that):
+        return Groups(groups=tuple(m.groups()))
 
     # Parse to Elements
     elements = []
@@ -167,7 +170,7 @@ def match(this: str, that: str) -> Result:
                 et.fromstring(__remove_prolog(xml)) if isinstance(xml, str) else xml
             )
         except XMLSyntaxError as e:
-            return __error(None, None, None, f'Cannot parse "{name}": "{xml}", {e}')
+            return __error((), this, that, f'Cannot parse "{name}": "{xml}", {e}')
     this_element, that_element = elements
 
     # Match Elements

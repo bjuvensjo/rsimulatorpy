@@ -1,26 +1,19 @@
 import logging
 import re
 
-from rsimulator_core.data import Result, Error
+from rsimulator_core.data import Error
+from rsimulator_core.regex.data import Groups
 
 log = logging.getLogger(__name__)
 
 
-def match(
-    this: str,
-    that: str,
-    parents=(),
-) -> Result:
+def match(this: str, that: str) -> Error | Groups:
     """
     Matches this and that.
     The "this" can contain regular expressions.
-    Returns a Result object with possible groups and/or errors
+    Returns an Error or a Groups object.
     """
-    m = re.fullmatch(rf"(?ms){this.strip()}", that.strip())
-    return (
-        Result(groups=tuple(m.groups()))
-        if m
-        else Result(
-            error=Error(None, None, None, f"Values not matching: {this} != {that}")
-        )
-    )
+    if m := re.fullmatch(rf"(?ms){this.strip()}", that.strip()):
+        return Groups(groups=tuple(m.groups()))
+    else:
+        return Error((), this, that, f"Values not matching: {this} != {that}")

@@ -34,12 +34,12 @@ def script(f):
     def decorator(*args, **kwargs):
         kws = kwargs if kwargs else {}
 
-        # global request
+        # Global request
         __execute(f"{args[0]}/global_request.py", args, kws)
         if "response" in kws:
             return kws["response"]
 
-        # call
+        # Call
         response = f(*args, **kwargs)
         kws["response"] = response
 
@@ -48,7 +48,7 @@ def script(f):
             __execute(
                 re.sub(r"Request.[a-z]+", ".py", response.candidate_path), args, kws
             )
-            # global response
+            # Global response
             __execute(f"{args[0]}/global_response.py", args, kws)
         return kws["response"]
 

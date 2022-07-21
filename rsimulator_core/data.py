@@ -1,26 +1,17 @@
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any
 
 
 @dataclass(frozen=True)
 class Error:
-    parents: Optional[tuple[str, ...]]
-    this: Optional[str]
-    that: Optional[str]
+    path: tuple[Any, ...] | None
+    this: Any | None
+    that: Any | None
     message: str
 
 
 @dataclass(frozen=True)
-class Result:
-    error: Optional[Error] = None
-    groups: tuple[str, ...] = ()
-
-    def has_error(self) -> bool:
-        return self.error is not None
-
-
-@dataclass(frozen=True)
-class CoreMatch:
+class Match:
     request: str
     candidate_path: str
     candidate: str
@@ -30,14 +21,8 @@ class CoreMatch:
 
 
 @dataclass(frozen=True)
-class CoreNoMatch:
+class NoMatch:
     request: str
     candidate_path: str
     candidate: str
-    result: Result
-
-
-@dataclass(frozen=True)
-class CoreReturn:
-    coreMatch: tuple[CoreMatch] = ()
-    coreNoMatch: tuple[CoreNoMatch] = ()
+    error: Error

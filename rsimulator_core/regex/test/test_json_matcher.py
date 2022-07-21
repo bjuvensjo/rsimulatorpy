@@ -1,6 +1,7 @@
 import pytest
-
-from rsimulator_core.regex.json_matcher import *
+from rsimulator_core.data import Error
+from rsimulator_core.regex.data import Groups
+from rsimulator_core.regex.json_matcher import match
 
 
 @pytest.mark.parametrize(
@@ -9,11 +10,11 @@ from rsimulator_core.regex.json_matcher import *
         (
             '{"c":"([a-z_]+)", "a": 1, "d": {"e": "^(e)_(v.+$)", "f": {"g": 1}}, "b":false}',
             '{"a": 1, "b":false, "c":"c_value", "d": {"e": "e_value", "f": {"g": 1}}}',
-            Result(error=None, groups=("c_value", "e", "value")),
+            Groups(groups=("c_value", "e", "value")),
         ),
     ],
 )
-def test_success_dicts(this, that, expected):
+def test_match_dicts(this, that, expected):
     assert match(this, that) == expected
 
 
@@ -22,15 +23,13 @@ def test_success_dicts(this, that, expected):
     [
         (
             '[1, 2, 3, [false, true, ["(a)", "b"]]]',
-            '[3, 2, 1, [true, false, ["b", "a"]]]',
-            Result(
-                error=None,
-                groups=("a",),
-            ),
+            '[1, 2, 3, [false, true, ["a", "b"]]]',
+            # '[3, 2, 1, [true, false, ["b", "a"]]]',
+            Groups(groups=("a",)),
         ),
     ],
 )
-def test_success_arrays(this, that, expected):
+def test_match_arrays(this, that, expected):
     assert match(this, that) == expected
 
 
@@ -40,53 +39,43 @@ def test_success_arrays(this, that, expected):
         (
             '"(h)ell(o)"',
             '"hello"',
-            Result(
-                error=None,
-                groups=(
-                    "h",
-                    "o",
-                ),
-            ),
+            Groups(groups=("h", "o")),
         )
     ],
 )
-def test_success_json_strings(this, that, expected):
+def test_match_json_strings(this, that, expected):
     assert match(this, that) == expected
 
 
 @pytest.mark.parametrize(
     "this, that, expected",
     [
-        ("(hello)", "hello", Result(error=None, groups=("hello",))),
+        ("(hello)", "hello", Groups(groups=("hello",))),
         (
             '\\["(hello)", "(world)"\\]',
             '["hello", "world"]',
-            Result(error=None, groups=("hello", "world")),
+            Groups(groups=("hello", "world")),
         ),
         (
             '{"a": (1), "b":(false), (.*)}',
             '{"a": 1, "b":false, "c":"c_value", "d": {"e": "e_value", "f": {"g": 1}}}',
-            Result(
-                error=None,
+            Groups(
                 groups=(
                     "1",
                     "false",
                     '"c":"c_value", "d": {"e": "e_value", "f": {"g": 1}}',
-                ),
+                )
             ),
         ),
         (
             ".+",
             '{"a": 1, "b":false, "c":"c_value", "d": {"e": "e_value", "f": {"g": 1}}}',
-            Result(
-                error=None,
-                groups=(),
-            ),
+            Groups(groups=()),
         ),
     ],
 )
 # Note that this does not require valid json
-def test_success_re_full_matches(this, that, expected):
+def test_match_re_full_matches(this, that, expected):
     assert match(this, that) == expected
 
 
@@ -96,29 +85,23 @@ def test_success_re_full_matches(this, that, expected):
         (
             "foo: fooValue",
             '{"foo": "fooValue"}',
-            Result(
-                error=Error(
-                    parents=None,
-                    this=None,
-                    that=None,
-                    message='Cannot load this "foo: fooValue": Expecting value: '
-                    "line 1 column 1 (char 0)",
-                ),
-                groups=(),
+            Error(
+                path=(),
+                this="foo: fooValue",
+                that='{"foo": "fooValue"}',
+                message='Cannot load this "foo: fooValue": Expecting value: '
+                "line 1 column 1 (char 0)",
             ),
         ),
         (
             '{"foo": "fooValue"}',
             "foo: fooValue",
-            Result(
-                error=Error(
-                    parents=None,
-                    this=None,
-                    that=None,
-                    message='Cannot load that "foo: fooValue": Expecting value: '
-                    "line 1 column 1 (char 0)",
-                ),
-                groups=(),
+            Error(
+                path=(),
+                this='{"foo": "fooValue"}',
+                that="foo: fooValue",
+                message='Cannot load that "foo: fooValue": Expecting value: '
+                "line 1 column 1 (char 0)",
             ),
         ),
     ],
@@ -133,15 +116,11 @@ def test_parse_error(this, that, expected):
         (
             "[1]",
             '{"foo": "fooValue"}',
-            Result(
-                error=Error(
-                    parents=(),
-                    this="[1]",
-                    that="{'foo': 'fooValue'}",
-                    message="Objects of different types: <class 'list'>, <class "
-                    "'dict'>",
-                ),
-                groups=(),
+            Error(
+                path=(),
+                this="[1]",
+                that="{'foo': 'fooValue'}",
+                message="Objects of different types: <class 'list'>, <class 'dict'>",
             ),
         ),
     ],
@@ -156,66 +135,51 @@ def test_objects_of_different_types_error(this, that, expected):
         (
             '"a"',
             '"b"',
-            Result(
-                error=Error(
-                    parents=(),
-                    this=None,
-                    that=None,
-                    message='Values not matching: "a" != "b"',
-                ),
-                groups=(),
+            Error(
+                path=(),
+                this="a",
+                that="b",
+                message='Values not matching: "a" != "b"',
             ),
         ),
         (
             '["a"]',
             '["b"]',
-            Result(
-                error=Error(
-                    parents=(),
-                    this=None,
-                    that=None,
-                    message='Values not matching: "a" != "b"',
-                ),
-                groups=(),
+            Error(
+                path=(0,),
+                this="a",
+                that="b",
+                message='Values not matching: "a" != "b"',
             ),
         ),
         (
             '{"p1": {"p2": "a"}}',
             '{"p1": {"p2": "b"}}',
-            Result(
-                error=Error(
-                    parents=("p1",),
-                    this="p2",
-                    that="p2",
-                    message='Values not matching: "a" != "b"',
-                ),
-                groups=(),
+            Error(
+                path=("p1", "p2"),
+                this="a",
+                that="b",
+                message='Values not matching: "a" != "b"',
             ),
         ),
         (
             '{"p1": {"p2": 1}}',
             '{"p1": {"p2": 2}}',
-            Result(
-                error=Error(
-                    parents=("p1",),
-                    this="p2",
-                    that="p2",
-                    message='Values not matching: "1" != "2"',
-                ),
-                groups=(),
+            Error(
+                path=("p1", "p2"),
+                this="1",
+                that="2",
+                message='Values not matching: "1" != "2"',
             ),
         ),
         (
             '{"p1": {"p2": ["a"]}}',
             '{"p1": {"p2": ["b"]}}',
-            Result(
-                error=Error(
-                    parents=("p1",),
-                    this="p2",
-                    that="p2",
-                    message='Values not matching: "a" != "b"',
-                ),
-                groups=(),
+            Error(
+                path=("p1", "p2", 0),
+                this="a",
+                that="b",
+                message='Values not matching: "a" != "b"',
             ),
         ),
     ],
@@ -230,11 +194,11 @@ def test_not_matching_values_error(this, that, expected):
         (
             '{"p1": {"p2": "a"}}',
             '{"p1": {"p2": "a", "p3": "b"}}',
-            Result(
-                error=Error(
-                    parents=(), this="p1", that="p1", message="Different number of keys"
-                ),
-                groups=(),
+            Error(
+                path=(),
+                this="p1",
+                that="p1",
+                message="Different number of keys",
             ),
         ),
     ],
@@ -249,14 +213,11 @@ def test_different_number_of_keys_error(this, that, expected):
         (
             '{"p1": {"p2": "a"}}',
             '{"p1": {"p": "a"}}',
-            Result(
-                error=Error(
-                    parents=("p1",),
-                    this="p2",
-                    that="p",
-                    message='Keys not matching: "p2" != "p"',
-                ),
-                groups=(),
+            Error(
+                path=("p1",),
+                this="p2",
+                that=None,
+                message='Keys not matching: "p2"',
             ),
         ),
     ],
@@ -271,14 +232,11 @@ def test_not_matching_keys_error(this, that, expected):
         (
             '{"p1": {"p2": [1, 2, 3]}}',
             '{"p1": {"p2": [1, 2]}}',
-            Result(
-                error=Error(
-                    parents=("p1",),
-                    this="p2",
-                    that="p2",
-                    message="Different length of lists",
-                ),
-                groups=(),
+            Error(
+                path=("p1", "p2"),
+                this="[1, 2, 3]",
+                that="[1, 2]",
+                message="Different length of lists",
             ),
         ),
     ],
@@ -293,14 +251,11 @@ def test_different_length_of_lists(this, that, expected):
         (
             '{"p1": {"p2": [1, 2, {"p3": "a"}]}}',
             '{"p1": {"p2": [1, 2, {"p3": "b"}]}}',
-            Result(
-                error=Error(
-                    parents=("p1", "p2"),
-                    this="p3",
-                    that="p3",
-                    message='Values not matching: "a" != "b"',
-                ),
-                groups=(),
+            Error(
+                path=("p1", "p2", 2, "p3"),
+                this="a",
+                that="b",
+                message='Values not matching: "a" != "b"',
             ),
         ),
     ],
