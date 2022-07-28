@@ -1,8 +1,8 @@
 import logging
 
+from rsimulator_core.config import get_find_matches_function
 from rsimulator_core.data import Match
 from rsimulator_core.decorators import cache, script
-from rsimulator_core.regex.matcher import find_matches
 
 log = logging.getLogger(__name__)
 
@@ -25,6 +25,7 @@ def service(
     If more than one match is found, it is logged on warning level.
     """
     log.debug("Service called with: %s", locals())
+    find_matches = get_find_matches_function(content_type)
     matches, no_matches = find_matches(
         root_path, root_relative_path, request, content_type
     )

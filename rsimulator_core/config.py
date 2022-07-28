@@ -1,6 +1,6 @@
 import logging
 
-from rsimulator_core.regex import json_matcher, txt_matcher, xml_matcher
+from rsimulator_core.regex import find_matches as regex_find_matches
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -11,12 +11,12 @@ CACHE = False
 # Configure match functions.
 # Key corresponds to core.service content_type parameter
 # Value is to function to handle matching for a specific content_type
-__regex_match_functions = {
-    "json": json_matcher.match,
-    "txt": txt_matcher.match,
-    "xml": xml_matcher.match,
+__match_functions = {
+    "json": regex_find_matches,
+    "txt": regex_find_matches,
+    "xml": regex_find_matches,
 }
 
 
-def get_regex_match_function(content_type: str) -> callable:
-    return __regex_match_functions.get(content_type, txt_matcher.match)
+def get_find_matches_function(content_type: str) -> callable:
+    return __match_functions.get(content_type, regex_find_matches)

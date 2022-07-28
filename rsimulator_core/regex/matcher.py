@@ -2,8 +2,8 @@ import logging
 from glob import glob
 from os.path import dirname, sep
 
-from rsimulator_core import config
 from rsimulator_core.data import Error, Match, NoMatch
+from rsimulator_core.regex.config import get_regex_match_function
 from rsimulator_core.regex.data import Groups
 
 log = logging.getLogger(__name__)
@@ -14,7 +14,7 @@ def find_matches(
 ) -> tuple[tuple[Match, ...], tuple[NoMatch, ...]]:
     no_matches = []
     matches = []
-    match = config.get_regex_match_function(content_type)
+    match = get_regex_match_function(content_type)
     for candidate_path in __find(root_path, root_relative_path, content_type):
         candidate = __read(candidate_path)
         result = match(candidate, request)

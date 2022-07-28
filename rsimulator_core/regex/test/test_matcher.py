@@ -1,7 +1,7 @@
 from posixpath import dirname
 
 from rsimulator_core.data import Error, Match, NoMatch
-from rsimulator_core.regex.matcher import find_matches
+from rsimulator_core.regex import find_matches
 
 root_dir = f"{dirname(__file__)}/data"
 
